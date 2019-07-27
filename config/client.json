@@ -1,0 +1,18 @@
+{
+  "server_addr": "qq375904043.xicp.net:8092",
+  "service_list": [{
+    "name": "mysql",
+    "remote_port": 8002,
+    "local_addr": "192.168.1.106:3306"
+  },
+    {
+      "name": "80",
+      "remote_port": 8003,
+      "local_addr": "192.168.1.106:80"
+    },
+    {
+      "name": "ssh",
+      "remote_port": 8004,
+      "local_addr": "192.168.1.103:22"
+    }]
+}
