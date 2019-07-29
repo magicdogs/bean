@@ -3,7 +3,9 @@ package main
 import (
 	"bean/data"
 	"bean/handler"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 )
@@ -22,130 +24,215 @@ func main() {
 			fmt.Printf("err %v: \r\n", err)
 			return
 		}
-		client := &data.ConnWaper{
+		client := &data.ConnWrapper{
 			Conn:     conn,
-			Listener: make(map[string]*data.ListenerWaper),
-			Cid:      handler.RandStringRunes(12),
+			Listener: make(map[string]*data.ListenerWrapper),
+			ReadCh:  make(chan data.Message,10),
+			SendCh:  make(chan data.Message,10),
 		}
+		rawMessage, err := data.ReadMessageWait(client.Conn)
+		if err != nil || int8(rawMessage.Type) != 1 {
+			fmt.Printf("client err or msg type wrong \r\n")
+			client.Close()
+			continue
+		}
+		var srReq data.ServiceRequest
+		err = json.Unmarshal(rawMessage.Body, &srReq)
+		if nil != err {
+			fmt.Printf("client json format error \r\n")
+			client.Close()
+			continue
+		}
+		client.ServiceReq = &srReq
+		client.Id = srReq.Id
+		go ProcessSvrRequest(client)
+		go ReadMessage(client)
+		go WriteMessage(client)
 		go OpenSvr(client)
 	}
 }
 
-func OpenSvr(client *data.ConnWaper) {
-	defer client.Close()
+func WriteMessage(connWrapper *data.ConnWrapper) {
+	defer func() {
+		connWrapper.Close()
+	}()
 	for {
-		rawMessage, err := data.ReadMessageWait(client.Conn)
-		if err != nil {
-			fmt.Printf("client id = %s error = %+v \r\n",client.Cid,err)
+		m, ok := <-connWrapper.SendCh
+		if !ok {
+			return
+		} else {
+			fmt.Printf("write message: %+v \r\n",m)
+			messageType := data.ParseMessageType(m)
+			err := data.WriteMessageByType(connWrapper.Conn,int8(messageType),m)
+			if  err != nil {
+				return
+			}
+		}
+	}
+}
+func ReadMessage(connWrapper *data.ConnWrapper) {
+	defer func() {
+		connWrapper.Close()
+	}()
+	for {
+		m, err := data.ReadMessageWait(connWrapper.Conn)
+		if nil != err {
+			fmt.Printf("read chan err %v: \r\n", err)
 			return
 		}
-		message, err := data.ParseMessage(rawMessage)
+		message, err := data.ParseMessage(m)
 		if nil != err {
-			fmt.Printf("err %v: \r\n", err)
+			fmt.Printf("message err %v: \r\n", err)
+			return
+		}
+		if  err != nil {
+			if err == io.EOF {
+				return
+			} else {
+				connWrapper.Close()
+				return
+			}
+		} else {
+			fmt.Printf("read message: %+v \r\n",m)
+			connWrapper.ReadCh <- message
+		}
+	}
+}
+
+func OpenSvr(client *data.ConnWrapper) {
+	defer func() {
+		client.Close()
+	}()
+	for {
+		message, ok := <- client.ReadCh
+		if !ok {
+			fmt.Printf("client id = %s \r\n",client.Id)
 			return
 		}
 		switch v := message.(type) {
-		case *data.PortRequest:
-			go ProcessPortRequest(v, client)
-		case *data.ConnectResponse:
-			conn := client.Listener[v.Name].ClientMap[v.Id].Conn
-			go ReadClientMessage(conn, client, v)
-		case *data.BinDataRequestWrapper:
-			cacheConn := client.Listener[v.Name].ClientMap[v.Id].Conn
-			_, err := cacheConn.Write(v.Content)
-			if nil != err {
-				fmt.Printf("err %v: \r\n", err)
-				cacheConn.Close()
-			}
-		case *data.HearBeatRequest:
-			fmt.Printf("hear beat {%s} \r\n", client.Cid)
-			hrResp := &data.HearBeatResponse{
-				Cid: client.Cid,
-			}
-			err := data.WriteMessage(client.Conn, 8, hrResp)
-			if nil != err {
-				fmt.Printf("hear beat error  err = % v \r\n", err)
-				return
-			}
-		default:
+			case *data.ConnectResponse:
+				go ReadClientMessage(client, v)
+			case *data.CloseRequest:
+				clientConns, okConn:= client.Listener[v.Name]
+				if okConn {
+					workConn,ok := clientConns.ClientMap[v.Id]
+					if ok {
+						client.Mutex.Lock()
+						delete(clientConns.ClientMap,v.Id)
+						client.Mutex.Unlock()
+						workConn.Conn.Close()
+					}
+				}
+
+			case *data.BinDataRequestWrapper:
+				clientConns := client.Listener[v.Name].ClientMap
+				workConn,ok := clientConns[v.Id]
+				if !ok {
+					dtReq := &data.CloseRequest{
+						Id: v.Id,
+						Name: v.Name,
+					}
+					client.SendCh <- dtReq
+					continue
+				}
+				_, err := workConn.Conn.Write(v.Content)
+				if nil != err {
+					fmt.Printf("err %v: \r\n", err)
+					workConn.Conn.Close()
+				}
+			case *data.HearBeatRequest:
+				fmt.Printf("hear beat {%s} \r\n", client.Id)
+				hrResp := &data.HearBeatResponse{
+					Cid: client.Id,
+				}
+				client.SendCh <- hrResp
+			default:
+				fmt.Println(v)
 		}
 	}
 
 }
 
-func ProcessPortRequest(request *data.PortRequest, client *data.ConnWaper) {
-	listen, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(request.RemotePort))
-	if nil != err {
-		fmt.Printf("err %v: \r\n", err)
-		client.Close()
-		return
-	}
-	fmt.Println("server start, listen to port " + strconv.Itoa(request.RemotePort) + " wait connect..")
-	//defer listen.Close()
-	resp := data.PortResponse{
+func ProcessSvrRequest(client *data.ConnWrapper) {
+	serviceRequest := client.ServiceReq
+	resp := &data.ServiceResponse{
 		Success: true,
-		Name:    request.Name,
+		Id:    serviceRequest.Id,
 		Message: "服务启动成功.",
 	}
-	err = data.WriteMessage(client.Conn, 2, resp)
-	if nil != err {
-		fmt.Printf("err %v: \r\n", err)
-		client.Close()
-		return
-	}
-	client.Listener[request.Name] = &data.ListenerWaper{
-		Name:      request.Name,
-		Cid:       client.Cid,
-		Listener:  listen,
-		ClientMap: make(map[string]*data.ClientConn),
-	}
-	for {
-		conn, err := listen.Accept()
+	for _,item := range serviceRequest.ServiceList {
+		listen, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(item.RemotePort))
 		if nil != err {
 			fmt.Printf("err %v: \r\n", err)
-			client.Close()
-			return
+			resp.Message = "服务启动失败，端口被占用."
+			resp.Success = false
+			break
 		}
-		id := handler.RandStringRunes(12)
-		//fmt.Println("new connection income for port " + strconv.Itoa(request.RemotePort) + ",id = " + id)
-		client.Listener[request.Name].ClientMap[id] = &data.ClientConn{
-			Conn: conn,
-			Id:   id,
+		client.Listener[item.Name] = &data.ListenerWrapper{
+			Listener: listen,
+			ClientMap: make(map[string]*data.ClientConn),
 		}
-		connReq := data.ConnectRequest{
-			Ip:   conn.RemoteAddr().String(),
-			Id:   id,
-			Name: request.Name,
-		}
-		err = data.WriteMessage(client.Conn, 3, connReq)
-		if nil != err {
-			fmt.Printf("err %v: \r\n", err)
-			client.Close()
-			return
-		}
+		fmt.Println("server start, listen to port " + strconv.Itoa(item.RemotePort) + " wait connect..")
+	}
+	client.SendCh <- resp
+	for n,l := range client.Listener{
+		go func(n string, l net.Listener) {
+			for{
+				conn, err := l.Accept()
+				if nil != err {
+					fmt.Printf("l.Listener.Accept err %v: \r\n", err)
+					return
+				}
+				id := handler.RandStringRunes(12)
+				client.Listener[n].ClientMap[id] = &data.ClientConn{
+					Id:   id,
+					Conn: conn,
+					ReadCh: make(chan []byte,10),
+				}
+				connReq := &data.ConnectRequest{
+					Id:   id,
+					Name:  n,
+					Ip:   conn.RemoteAddr().String(),
+				}
+				client.SendCh <- connReq
+			}
+		}(n,l.Listener)
 	}
 }
 
-func ReadClientMessage(conn net.Conn, client *data.ConnWaper, request *data.ConnectResponse) {
-	defer conn.Close()
+func ReadClientMessage(client *data.ConnWrapper, request *data.ConnectResponse) {
+	workConn := client.Listener[request.Name].ClientMap[request.Id].Conn
+	defer func() {
+		workConn.Close()
+		if err := recover(); err != nil {
+			fmt.Println("panic error server ReadClientMessage")
+			client.Close()
+			return
+		}
+	}()
 	for {
-		buf := make([]byte, 2048)
-		n, err := conn.Read(buf)
+		buf := make([]byte, 2 * 1024)
+		n, err := workConn.Read(buf)
 		if nil != err {
 			fmt.Printf("err %v: \r\n", err)
+			dtReq := &data.CloseRequest{
+				Id: request.Id,
+				Name: request.Name,
+			}
+			client.SendCh <- dtReq
+			client.Mutex.Lock()
+			delete(client.Listener[request.Name].ClientMap,request.Id)
+			client.Mutex.Unlock()
 			return
 		}
 		buf = buf[0:n]
-		dtReq := &data.BinDataRequest{
-			Id:   request.Id,
-			Name: request.Name,
+		dtReq := &data.BinDataRequestWrapper{
+			BinDataRequest: data.BinDataRequest{
+				Id:   request.Id,
+				Name: request.Name,
+			},
+			Content: buf,
 		}
-		_, err = data.WriteDataMessage(client.Conn, 5, dtReq, buf)
-		if nil != err {
-			fmt.Printf("err %v: \r\n", err)
-			client.Conn.Close()
-			return
-		}
+		client.SendCh <- dtReq
 	}
-
 }

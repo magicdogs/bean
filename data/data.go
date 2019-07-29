@@ -10,70 +10,86 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
-type ClientConfig struct {
-	ServerAddr  string                `json:"server_addr"`
-	ServiceList []ClientServiceConfig `json:"service_list"`
+
+type Message interface {
 }
 
-type ClientServiceConfig struct {
-	Name       string `json:"name"`
-	RemotePort int    `json:"remote_port"`
-	LocalAddr  string `json:"local_addr"`
-}
-
-type ConnWaper struct {
+type ConnWrapper struct {
+	Id      string
 	Conn     net.Conn
-	Listener map[string]*ListenerWaper
-	Cid      string
+	Listener map[string]*ListenerWrapper
+	ReadCh   chan Message
+	SendCh   chan Message
+	ServiceReq *ServiceRequest
+	Closed bool
+	Mutex  sync.Mutex
 }
 
-type ListenerWaper struct {
-	Name      string
-	Cid       string
+type ListenerWrapper struct {
 	ClientMap map[string]*ClientConn
 	Listener  net.Listener
 }
 
 type ClientConn struct {
-	Conn net.Conn
 	Id   string
+	Conn net.Conn
+	ReadCh chan []byte
 }
 
-func (p *ConnWaper) Close() {
-	p.Conn.Close()
-	for _, v := range p.Listener {
+func (c *ConnWrapper) Close() {
+	c.Mutex.Lock()
+	if !c.Closed {
+		close(c.ReadCh)
+		close(c.SendCh)
+		c.Closed = true
+	}
+	c.Mutex.Unlock()
+	for _, v := range c.Listener {
 		for _, m := range v.ClientMap {
-			m.Conn.Close()
+			if m.Conn != nil {
+				m.Conn.Close()
+			}
 		}
-		v.Listener.Close()
+		if v.Listener != nil {
+			v.Listener.Close()
+		}
+	}
+	if c.Conn != nil {
+		c.Conn.Close()
 	}
 }
 
-type PortRequest struct {
-	Name       string    `json:"name"`
-	RemotePort int       `json:"remote_port"`
+type ServiceRequest struct {
+	Id string `json:"id"`
+	ServiceList []ServiceBody `json:"service_list"`
 	ReqTime    time.Time `json:"req_time"`
 }
 
-type PortResponse struct {
-	Name    string `json:"name"`
+type ServiceBody struct {
+	Name       string `json:"name"`
+	RemotePort int    `json:"remote_port"`
+}
+
+type ServiceResponse struct {
+	Id   	string `json:"id"`
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
 
 type ConnectRequest struct {
-	Ip   string `json:"ip"`
 	Id   string `json:"id"`
 	Name string `json:"name"`
+	Ip   string `json:"ip"`
 }
 
 type ConnectResponse struct {
-	Success bool   `json:"success"`
 	Id      string `json:"id"`
-	Name    string `json:"name"`
+	Name string `json:"name"`
+	Success bool   `json:"success"`
 }
 
 type BinDataRequest struct {
@@ -138,10 +154,18 @@ func ReadMessageWait(conn net.Conn) (*RawMessage, error) {
 	return raw, nil
 }
 
-func WriteDataMessage(conn net.Conn, typ int8, data *BinDataRequest, buf []byte) (n int, err error) {
+func WriteMessageByType(conn net.Conn, typ int8, msg Message) (err error) {
+	if typ == 5 {
+		v := msg.(*BinDataRequestWrapper)
+		return WriteDataMessage(conn,typ,v.BinDataRequest,v.Content)
+	}else {
+		return WriteMessage(conn,typ,msg)
+	}
+}
+func WriteDataMessage(conn net.Conn, typ int8, data Message, buf []byte) (err error) {
 	bytePack, err := json.Marshal(data)
 	if err != nil {
-		return -2, err
+		return err
 	}
 	jsonLen := int32(len(bytePack))
 	binLen := int32(len(buf))
@@ -151,27 +175,27 @@ func WriteDataMessage(conn net.Conn, typ int8, data *BinDataRequest, buf []byte)
 	writer.WriteByte(byte(typ))
 	err = binary.Write(writer, binary.LittleEndian, total)
 	if err != nil {
-		return -1, err
+		return err
 	}
 	err = binary.Write(writer, binary.LittleEndian, jsonLen)
 	if err != nil {
-		return -3, err
+		return err
 	}
 	err = binary.Write(writer, binary.LittleEndian, binLen)
 	if err != nil {
-		return -4, err
+		return err
 	}
 	writer.Write(bytePack)
 	writer.Write(buf)
 	writer.Flush()
-	n, err = conn.Write(buffer.Bytes())
+	n, err := conn.Write(buffer.Bytes())
 	if n != len(buffer.Bytes()) {
 		fmt.Println("vvvvv error")
 	}
-	return n, err
+	return err
 }
 
-func WriteMessage(conn net.Conn, typ int8, data interface{}) (err error) {
+func WriteMessage(conn net.Conn, typ int8, data Message) (err error) {
 	bytePack, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -195,15 +219,15 @@ func WriteMessage(conn net.Conn, typ int8, data interface{}) (err error) {
 	return err
 }
 
-func ParseMessage(rawMessage *RawMessage) (interface{}, error) {
+func ParseMessage(rawMessage *RawMessage) (Message,error) {
 	v := int(rawMessage.Type)
 	switch v {
 	case 1:
-		var prReq PortRequest
+		var prReq ServiceRequest
 		err := json.Unmarshal(rawMessage.Body, &prReq)
 		return &prReq, err
 	case 2:
-		var prResp PortResponse
+		var prResp ServiceResponse
 		err := json.Unmarshal(rawMessage.Body, &prResp)
 		return &prResp, err
 	case 3:
@@ -269,5 +293,31 @@ func ParseMessage(rawMessage *RawMessage) (interface{}, error) {
 		return &hearBeatResp, err
 	default:
 		return nil, errors.New("notype")
+	}
+}
+
+func ParseMessageType(message interface{}) (int) {
+	switch v := message.(type) {
+		case *ServiceRequest:
+			return 1
+		case *ServiceResponse:
+			return 2
+		case *ConnectRequest:
+			return 3
+		case *ConnectResponse:
+			return 4
+		case *BinDataRequest:
+			return 5
+		case *BinDataRequestWrapper:
+			return 5
+		case *CloseRequest:
+			return 6
+		case *HearBeatRequest:
+			return 7
+		case *HearBeatResponse:
+			return 8
+		default:
+			fmt.Println(v)
+			return -1
 	}
 }

@@ -1,148 +1,262 @@
 package main
 
+import "C"
 import (
 	"bean/data"
+	"bean/handler"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
+	"sync"
 	"time"
 )
 
-var connMap map[string]net.Conn
-var configMap map[string]data.ClientServiceConfig
-var clientConfig data.ClientConfig
-var closeSign,restartSign chan bool
+type ClientConfig struct {
+	ServerAddr  string                `json:"server_addr"`
+	ServiceList []ClientServiceConfig `json:"service_list"`
+}
 
-func init(){
-	connMap = make(map[string]net.Conn)
-	configMap = make(map[string]data.ClientServiceConfig)
-	closeSign = make(chan bool)
-	restartSign = make(chan bool)
+type ClientServiceConfig struct {
+	Name       string `json:"name"`
+	RemotePort int    `json:"remote_port"`
+	LocalAddr  string `json:"local_addr"`
+}
+
+type ClientApplication struct {
+	Id string
+	Conn net.Conn
+	Config *ClientConfig
+	CloseSign chan bool
+	RestartSign chan bool
+	ServiceConfig map[string]ClientServiceConfig
+	ProxyMap map[string]net.Conn
+	ReadCh   chan data.Message
+	SendCh   chan data.Message
+	Closed bool
+	Mutex  sync.Mutex
+}
+
+func (c *ClientApplication)Clear(){
+	c.ReadCh = make(chan data.Message,10)
+	c.SendCh = make(chan data.Message,10)
+	c.Closed = false
+}
+func (c *ClientApplication)Close(){
+	c.Mutex.Lock()
+	if !c.Closed {
+		close(c.ReadCh)
+		close(c.SendCh)
+		c.Closed = true
+	}
+	c.Mutex.Unlock()
+	if c.Conn != nil {
+		c.Conn.Close()
+	}
+	for _,v := range c.ProxyMap {
+		if v!=nil{
+			v.Close()
+		}
+	}
+	//c.ProxyMap = nil
+	//close(c.ReadCh)
+	//close(c.SendCh)
+}
+
+func NewClientApplication() *ClientApplication{
+	clientApplication := &ClientApplication{
+		ProxyMap: make(map[string]net.Conn),
+		ServiceConfig: make(map[string]ClientServiceConfig),
+		CloseSign: make(chan bool),
+		RestartSign: make(chan bool),
+		ReadCh:  make(chan data.Message,10),
+		SendCh:  make(chan data.Message,10),
+		Closed: false,
+	}
+	return clientApplication
+}
+
+func InitConfig() (*ClientConfig){
 	content, err := ioutil.ReadFile("./config/client.json")
 	if nil != err {
 		fmt.Println("config.json read error ")
-		return
+		panic(err)
 	}
+	var clientConfig ClientConfig
 	err = json.Unmarshal(content, &clientConfig)
 	if nil != err {
 		fmt.Println("json config Unmarshal error ")
-		return
+		panic(err)
 	}
-	fmt.Println(clientConfig)
+	return &clientConfig
+}
+
+
+func CWriteMessage(client *ClientApplication) {
+	defer func() {
+		client.Close()
+	}()
+	for{
+		m, ok := <-client.SendCh
+		if !ok {
+			return
+		} else {
+			messageType := data.ParseMessageType(m)
+			err := data.WriteMessageByType(client.Conn,int8(messageType),m)
+			if  err != nil {
+				return
+			}
+		}
+	}
+}
+func CReadMessage(client *ClientApplication) {
+	defer func() {
+		client.Close()
+	}()
+	for {
+		m, err := data.ReadMessageWait(client.Conn)
+		if nil != err {
+			client.Close()
+			if err == io.EOF {
+				fmt.Printf("read chan eof  %v: \r\n", err)
+				return
+			}
+			fmt.Printf("read chan err %v: \r\n", err)
+			return
+		}
+		message, err := data.ParseMessage(m)
+		if  err != nil {
+			fmt.Printf("message err %v: \r\n", err)
+			continue
+		} else {
+			client.ReadCh <- message
+		}
+	}
 }
 
 func main() {
-	go RunClient(false)
+	clientApplication := NewClientApplication()
+	clientApplication.Config = InitConfig()
+	go RunClient(clientApplication,false)
 	for {
 		select {
-			case <- closeSign:
+			case <- clientApplication.CloseSign:
 				fmt.Println("system exit sign")
 				return
-			case <- restartSign:
+			case <- clientApplication.RestartSign:
+				clientApplication.Clear()
+				time.Sleep(15 * time.Second)
 				fmt.Println("client restart sign")
-				go RunClient(true)
+				go RunClient(clientApplication,true)
 		}
 	}
 }
 
-func RunClient(restartFlag bool) {
-	conn, err := net.Dial("tcp", clientConfig.ServerAddr)
+func RunClient(clientApplication *ClientApplication,restartFlag bool) {
+	conn, err := net.Dial("tcp", clientApplication.Config.ServerAddr)
 	if nil != err {
 		fmt.Printf("err %v: \r\n", err)
 		if restartFlag {
-			restartSign <- true
+			clientApplication.RestartSign <- true
 		} else {
-			closeSign <- true
+			clientApplication.CloseSign <- true
 		}
 		return
 	}
+	clientApplication.Conn = conn
 	fmt.Println("链接到服务器成功....")
-	for _, item := range clientConfig.ServiceList {
-		pr := &data.PortRequest{
-			Name:       item.Name,
+	srReq := &data.ServiceRequest{
+		Id: handler.RandStringRunes(12),
+		ServiceList: make([]data.ServiceBody,0),
+		ReqTime:    time.Now(),
+	}
+	for _, item := range clientApplication.Config.ServiceList {
+		svrBody := data.ServiceBody{
+			Name: item.Name,
 			RemotePort: item.RemotePort,
-			ReqTime:    time.Now(),
 		}
-		err = data.WriteMessage(conn, 1, pr)
-		if err != nil{
-			fmt.Printf("err %v: \r\n", err)
-			return
-		}
-		raw, err := data.ReadMessageWait(conn)
-		if err != nil{
-			fmt.Printf("err %v: \r\n", err)
-			return
-		}
-		message, err := data.ParseMessage(raw)
-		if err != nil{
-			fmt.Printf("err %v: \r\n", err)
-			return
-		}
-		switch v := message.(type) {
-		case *data.PortResponse:
-			fmt.Printf("service open success %v: \r\n", v)
-			configMap[item.Name] = item
-		default:
-			fmt.Printf("service open fail %v: \r\n", v)
-			return
-		}
+		clientApplication.ServiceConfig[item.Name] = item
+		srReq.ServiceList = append(srReq.ServiceList, svrBody)
 	}
-	go ClientHearBeat(conn)
-	go TransportMessage(conn)
+	err = data.WriteMessage(clientApplication.Conn, int8(1), srReq)
+	if nil != err {
+		fmt.Printf("wr error %+v \r\n",err)
+		clientApplication.RestartSign <- true
+		return
+	}
+	rawMessage, err := data.ReadMessageWait(clientApplication.Conn)
+	if nil != err {
+		fmt.Printf("rd error %+v \r\n",err)
+		clientApplication.RestartSign <- true
+		return
+	}
+	if rawMessage.Type != 2 {
+		fmt.Printf("raw error %+v \r\n",err)
+		clientApplication.RestartSign <- true
+		return
+	}
+	var srResp data.ServiceResponse
+	err = json.Unmarshal(rawMessage.Body,&srResp)
+	if nil != err {
+		fmt.Printf("json.Unmarshal error %+v \r\n",err)
+		clientApplication.RestartSign <- true
+		return
+	}
+	fmt.Printf("service open success %v: \r\n", srResp)
+	clientApplication.Id = srResp.Id
+	go CWriteMessage(clientApplication)
+	go CReadMessage(clientApplication)
+	go TransportMessage(clientApplication)
 }
 
-func TransportMessage(conn net.Conn) {
-	defer func() {
-		conn.Close()
-	}()
-	for {
-		raw, err := data.ReadMessageWait(conn)
-		if err != nil{
-			fmt.Printf("conn read eof %v: \r\n", err)
-			return
-		}
-		message, err := data.ParseMessage(raw)
-		if err != nil && err.Error() == "notype"{
-			continue
-		}
-		switch v := message.(type) {
-		case *data.ConnectRequest:
-			createPortSvr(v, conn)
-		case *data.BinDataRequestWrapper:
-			ReadSvrMessage(v)
-		case *data.HearBeatResponse:
-			fmt.Println("heart beat resp id = " + v.Cid)
-		default:
-		}
-	}
-}
-
-func ClientHearBeat(conn net.Conn) {
+func TransportMessage(clientApplication *ClientApplication) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer func() {
-		ticker.Stop()
-		restartSign <- true
+		if err := recover(); err != nil {
+			fmt.Println("panic error TransportMessage")
+			ticker.Stop()
+			clientApplication.RestartSign <- true
+			return
+		}
 	}()
 	for {
-		t := <-ticker.C
-		htReq := data.HearBeatRequest{
-			SendTime: t,
-		}
-		err := data.WriteMessage(conn, 7, &htReq)
-		if nil != err {
-			fmt.Printf("x3error hearbeat err = % v \r\n", err)
-			conn.Close()
-			return
+		select {
+			case t := <-ticker.C:
+				htReq := data.HearBeatRequest{
+					SendTime: t,
+				}
+				clientApplication.SendCh <- &htReq
+			case message := <- clientApplication.ReadCh:
+				switch v := message.(type) {
+					case *data.ConnectRequest:
+						createPortSvr(v, clientApplication)
+					case *data.BinDataRequestWrapper:
+						ReadSvrMessage(v,clientApplication)
+					case *data.HearBeatResponse:
+						fmt.Println("heart beat resp id = " + v.Cid)
+					case *data.CloseRequest:
+						conn,ok := clientApplication.ProxyMap[v.Id]
+						if ok {
+							conn.Close()
+							delete(clientApplication.ProxyMap,v.Id)
+						}
+				default:
+				}
 		}
 	}
 }
 
-func createPortSvr(request *data.ConnectRequest, conn net.Conn) {
-	serviceConfig := configMap[request.Name]
+func createPortSvr(request *data.ConnectRequest, clientApplication *ClientApplication) {
+	serviceConfig := clientApplication.ServiceConfig[request.Name]
 	connLocal, err := net.Dial("tcp", serviceConfig.LocalAddr)
 	if err != nil{
 		fmt.Printf("err %v: \r\n", err)
+		closeReq := &data.CloseRequest{
+			Id: request.Id,
+			Name: request.Name,
+		}
+		clientApplication.SendCh <- closeReq
 		return
 	}
 	crResp := &data.ConnectResponse{
@@ -150,51 +264,61 @@ func createPortSvr(request *data.ConnectRequest, conn net.Conn) {
 		Id:      request.Id,
 		Name:    request.Name,
 	}
-	err = data.WriteMessage(conn, 4, crResp)
-	if err != nil{
-		fmt.Printf("err %v: \r\n", err)
-		conn.Close()
-		return
-	}
-	fmt.Println(crResp)
-	connMap[request.Id] = connLocal
-	go ReadLocalSvrMessage(conn, connLocal, request)
+	clientApplication.SendCh <- crResp
+	clientApplication.ProxyMap[request.Id] = connLocal
+	go ReadLocalSvrMessage(clientApplication, connLocal, request)
 }
 
-func ReadLocalSvrMessage(conn net.Conn, connLocal net.Conn, request *data.ConnectRequest) {
+func ReadLocalSvrMessage(clientApplication *ClientApplication, connLocal net.Conn, request *data.ConnectRequest) {
 	defer connLocal.Close()
 	for {
-		buf := make([]byte, 2048)
+		buf := make([]byte, 2 * 1024)
 		n, err := connLocal.Read(buf)
 		if err != nil{
 			fmt.Printf("err %v: \r\n", err)
+			dtReq := &data.CloseRequest{
+				Id: request.Id,
+				Name: request.Name,
+			}
+			clientApplication.SendCh <- dtReq
+			delete(clientApplication.ProxyMap,request.Id)
+			return
 			connLocal.Close()
 			return
 		}
 		buf = buf[0:n]
-		dtReq := &data.BinDataRequest{
-			Id:   request.Id,
-			Name: request.Name,
+		dtReq := &data.BinDataRequestWrapper{
+			BinDataRequest: data.BinDataRequest{
+				Id: request.Id,
+				Name: request.Name,
+			},
+			Content: buf,
 		}
-		_, err = data.WriteDataMessage(conn, 5, dtReq, buf)
-		if err != nil{
-			fmt.Printf("err %v: \r\n", err)
-			conn.Close()
-			return
-		}
+		clientApplication.SendCh <- dtReq
 	}
 }
 
-func ReadSvrMessage(dtReq *data.BinDataRequestWrapper) {
-	connLocal := connMap[dtReq.Id]
-	if connLocal == nil {
+func ReadSvrMessage(dtReq *data.BinDataRequestWrapper,clientApplication *ClientApplication) {
+	connLocal ,ok := clientApplication.ProxyMap[dtReq.Id]
+	if !ok {
 		fmt.Printf("connLocal == nil err \r\n")
+		closeReq := &data.CloseRequest{
+			Id: dtReq.Id,
+			Name: dtReq.Name,
+		}
+		clientApplication.SendCh <- closeReq
 		return
 	}
 	_, err := connLocal.Write(dtReq.Content)
 	if err != nil{
+		fmt.Printf("connLocal == nil err \r\n")
+		closeReq := &data.CloseRequest{
+			Id: dtReq.Id,
+			Name: dtReq.Name,
+		}
+		clientApplication.SendCh <- closeReq
 		connLocal.Close()
-		connMap[dtReq.Id] = nil
+		delete(clientApplication.ProxyMap,dtReq.Id)
 		fmt.Printf("err %v: \r\n", err)
 		return
 	}
