@@ -10,6 +10,23 @@ import (
 	"strconv"
 )
 
+type ServerWriter struct {
+	C *data.ConnWrapper
+	R *data.ConnectResponse
+}
+
+func (b *ServerWriter) Write(p []byte) (n int, err error) {
+	dtReq := &data.BinDataRequestWrapper{
+		BinDataRequest: data.BinDataRequest{
+			Id:   b.R.Id,
+			Name: b.R.Name,
+		},
+		Content: p,
+	}
+	b.C.SendCh <- dtReq
+	return len(p), nil
+}
+
 func main() {
 	listen, err := net.Listen("tcp", "0.0.0.0:8092")
 	if err != nil {
@@ -203,6 +220,14 @@ func ProcessSvrRequest(client *data.ConnWrapper) {
 func ReadClientMessage(client *data.ConnWrapper, request *data.ConnectResponse) {
 	workConn := client.Listener[request.Name].ClientMap[request.Id].Conn
 	defer func() {
+		dtReq := &data.CloseRequest{
+			Id:   request.Id,
+			Name: request.Name,
+		}
+		client.SendCh <- dtReq
+		client.Mutex.Lock()
+		delete(client.Listener[request.Name].ClientMap, request.Id)
+		client.Mutex.Unlock()
 		workConn.Close()
 		if err := recover(); err != nil {
 			fmt.Println("panic error server ReadClientMessage")
@@ -210,29 +235,33 @@ func ReadClientMessage(client *data.ConnWrapper, request *data.ConnectResponse) 
 			return
 		}
 	}()
-	for {
-		buf := make([]byte, 2*1024)
-		n, err := workConn.Read(buf)
-		if nil != err {
-			fmt.Printf("err %v: \r\n", err)
-			dtReq := &data.CloseRequest{
-				Id:   request.Id,
-				Name: request.Name,
-			}
-			client.SendCh <- dtReq
-			client.Mutex.Lock()
-			delete(client.Listener[request.Name].ClientMap, request.Id)
-			client.Mutex.Unlock()
-			return
-		}
-		buf = buf[0:n]
-		dtReq := &data.BinDataRequestWrapper{
-			BinDataRequest: data.BinDataRequest{
-				Id:   request.Id,
-				Name: request.Name,
-			},
-			Content: buf,
-		}
-		client.SendCh <- dtReq
+	swr := &ServerWriter{
+		C: client,
+		R: request,
 	}
+	buf := make([]byte, 1024)
+	n, err := io.CopyBuffer(swr, workConn, buf)
+	fmt.Println("swr n = " + strconv.Itoa(int(n)))
+	if nil != err {
+		fmt.Printf("err %v: \r\n", err)
+		return
+	}
+	//for {
+	//	buf := make([]byte,1024)
+	//	n, err := workConn.Read(buf)
+	//	dtReq := &data.BinDataRequestWrapper{
+	//		BinDataRequest: data.BinDataRequest{
+	//			Id:   request.Id,
+	//			Name: request.Name,
+	//		},
+	//		Content: buf[0:n] ,
+	//	}
+	//	client.SendCh <- dtReq
+	//	fmt.Println("swr n = " + strconv.Itoa(int(n)))
+	//	if nil != err {
+	//		fmt.Printf("err %v: \r\n", err)
+	//		return
+	//	}
+	//}
+
 }

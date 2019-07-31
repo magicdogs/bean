@@ -286,15 +286,28 @@ func createPortSvr(request *data.ConnectRequest, clientApplication *ClientApplic
 }
 
 func ReadLocalSvrMessage(clientApplication *ClientApplication, connLocal net.Conn, request *data.ConnectRequest) {
-	defer connLocal.Close()
+	defer func() {
+		dtReq := &data.CloseRequest{
+			Id:   request.Id,
+			Name: request.Name,
+		}
+		clientApplication.SendCh <- dtReq
+		connLocal.Close()
+		delete(clientApplication.ProxyMap, request.Id)
+	}()
+	//cwr := &ClientWriter{
+	//	C:clientApplication,
+	//	R:request,
+	//}
+	//buf := make([]byte,1024)
+	//written, err := io.CopyBuffer(cwr,connLocal,buf)
+	//fmt.Println("cwr = " + strconv.Itoa(int(written)))
+	//if err != nil {
+	//	fmt.Printf("err %v: \r\n", err)
+	//	return
+	//}
 	for {
-		//cwr := &ClientWriter{
-		//	C:clientApplication,
-		//	R:request,
-		//}
-		//written, err := io.Copy(cwr, connLocal)
-		//fmt.Println("cwr = " + strconv.Itoa(int(written)))
-		bytBuf := make([]byte, 32*1024)
+		bytBuf := make([]byte, 512)
 		n, err := connLocal.Read(bytBuf)
 		dtReq := &data.BinDataRequestWrapper{
 			BinDataRequest: data.BinDataRequest{

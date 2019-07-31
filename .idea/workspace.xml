@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="7be62133-aba6-4d24-8691-60a55e589e2d" name="Default Changelist" comment="fix bug">
+    <list default="true" id="7be62133-aba6-4d24-8691-60a55e589e2d" name="Default Changelist" comment="optimize conn read byte data">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client.go" beforeDir="false" afterPath="$PROJECT_DIR$/client.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/config/client.json" beforeDir="false" afterPath="$PROJECT_DIR$/config/client.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/server.go" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -28,14 +27,14 @@
       <usages-collector id="statistics.file.extensions.open">
         <counts>
           <entry key="bat" value="1" />
-          <entry key="go" value="54" />
+          <entry key="go" value="57" />
           <entry key="json" value="5" />
           <entry key="s" value="4" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.open">
         <counts>
-          <entry key="Go" value="54" />
+          <entry key="Go" value="57" />
           <entry key="JSON" value="5" />
           <entry key="PLAIN_TEXT" value="1" />
           <entry key="x86 Plan9 Assembly" value="4" />
@@ -44,16 +43,16 @@
       <usages-collector id="statistics.file.extensions.edit">
         <counts>
           <entry key="bat" value="2" />
-          <entry key="go" value="5228" />
+          <entry key="go" value="5439" />
           <entry key="json" value="79" />
-          <entry key="txt" value="78" />
+          <entry key="txt" value="106" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.file.types.edit">
         <counts>
-          <entry key="Go" value="5228" />
+          <entry key="Go" value="5439" />
           <entry key="JSON" value="79" />
-          <entry key="PLAIN_TEXT" value="80" />
+          <entry key="PLAIN_TEXT" value="108" />
         </counts>
       </usages-collector>
       <usages-collector id="statistics.vcs.git.usages">
@@ -70,20 +69,47 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/server.go">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="142">
-              <caret line="137" selection-start-line="137" selection-end-line="137" />
+            <state relative-caret-position="172">
+              <caret line="241" column="28" selection-start-line="241" selection-start-column="28" selection-end-line="241" selection-end-column="28" />
             </state>
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://C:/Go/src/io/multi.go">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="152">
+              <caret line="47" column="5" selection-start-line="47" selection-start-column="5" selection-end-line="47" selection-end-column="5" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://C:/Go/src/builtin/builtin.go">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="292">
+              <caret line="140" column="5" selection-start-line="140" selection-start-column="5" selection-end-line="140" selection-end-column="5" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://C:/Go/src/io/ioutil/ioutil.go">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="241">
+              <caret line="35" column="23" lean-forward="true" selection-start-line="35" selection-start-column="23" selection-end-line="35" selection-end-column="23" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/client.go">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="297">
-              <caret line="302" column="31" lean-forward="true" selection-start-line="302" selection-start-column="31" selection-end-line="302" selection-end-column="31" />
+            <state relative-caret-position="-89">
+              <caret line="308" column="9" lean-forward="true" selection-start-line="308" selection-start-column="9" selection-end-line="308" selection-end-column="9" />
             </state>
           </provider>
         </entry>
@@ -107,28 +133,10 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://C:/Go/src/net/net.go">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="3399">
-              <caret line="112" column="5" selection-start-line="112" selection-start-column="5" selection-end-line="112" selection-end-column="5" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
         <entry file="file://C:/Go/src/io/io.go">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="208">
-              <caret line="403" selection-start-line="403" selection-end-line="403" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://C:/Go/src/crypto/tls/conn.go">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="198">
-              <caret line="6" column="11" selection-start-line="6" selection-start-column="11" selection-end-line="6" selection-end-column="11" />
+            <state relative-caret-position="905">
+              <caret line="402" column="19" selection-start-line="402" selection-start-column="19" selection-end-line="402" selection-end-column="19" />
             </state>
           </provider>
         </entry>
@@ -145,8 +153,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://C:/Go/src/bytes/buffer.go">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="5445">
-              <caret line="169" column="53" selection-start-line="169" selection-end-line="169" selection-end-column="53" />
+            <state relative-caret-position="-881">
+              <caret line="202" column="9" selection-start-line="202" selection-start-column="8" selection-end-line="202" selection-end-column="9" />
             </state>
           </provider>
         </entry>
@@ -203,9 +211,9 @@
         <option value="$PROJECT_DIR$/handler/handler.go" />
         <option value="$PROJECT_DIR$/buid.bat" />
         <option value="$PROJECT_DIR$/data/data.go" />
-        <option value="$PROJECT_DIR$/server.go" />
         <option value="$PROJECT_DIR$/config/client.json" />
         <option value="$PROJECT_DIR$/client.go" />
+        <option value="$PROJECT_DIR$/server.go" />
       </list>
     </option>
   </component>
@@ -335,7 +343,7 @@
       <workItem from="1564294566529" duration="2906000" />
       <workItem from="1564372586558" duration="1491000" />
       <workItem from="1564555977982" duration="1757000" />
-      <workItem from="1564557779679" duration="3030000" />
+      <workItem from="1564557779679" duration="8355000" />
     </task>
     <task id="LOCAL-00001" summary="fix bug">
       <created>1564391380325</created>
@@ -344,17 +352,24 @@
       <option name="project" value="LOCAL" />
       <updated>1564391380325</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="optimize conn read byte data">
+      <created>1564560974256</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1564560974256</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="TimeTrackingManager">
-    <option name="totallyTimeSpent" value="75252000" />
+    <option name="totallyTimeSpent" value="80577000" />
   </component>
   <component name="ToolWindowManager">
-    <frame x="-8" y="-8" width="1936" height="1056" extended-state="6" />
+    <frame x="-8" y="-8" width="1936" height="1056" extended-state="7" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.2247854" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.2247854" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Designer" order="2" />
       <window_info id="Image Layers" order="3" />
@@ -364,7 +379,7 @@
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.32925472" />
       <window_info anchor="bottom" id="Run" order="2" weight="0.32925472" />
-      <window_info active="true" anchor="bottom" id="Debug" order="3" visible="true" weight="0.45139664" />
+      <window_info anchor="bottom" id="Debug" order="3" visible="true" weight="0.45139664" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" />
@@ -395,7 +410,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="fix bug" />
-    <option name="LAST_COMMIT_MESSAGE" value="fix bug" />
+    <MESSAGE value="optimize conn read byte data" />
+    <option name="LAST_COMMIT_MESSAGE" value="optimize conn read byte data" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -405,12 +421,6 @@
           <line>320</line>
           <option name="timeStamp" value="7" />
         </line-breakpoint>
-        <line-breakpoint enabled="true" type="DlvLineBreakpoint">
-          <url>file://$PROJECT_DIR$/client.go</url>
-          <line>305</line>
-          <properties />
-          <option name="timeStamp" value="14" />
-        </line-breakpoint>
       </breakpoints>
     </breakpoint-manager>
     <watches-manager>
@@ -418,6 +428,7 @@
         <watch expression="errno" language="go" />
         <watch expression="opErr.Err.(type)" language="go" />
         <watch expression="p[:19]" language="go" />
+        <watch expression="bytBuf[:n]" language="go" />
       </configuration>
     </watches-manager>
   </component>
@@ -450,6 +461,11 @@
       </expression>
     </expressions>
     <expressions id="watch">
+      <expression>
+        <expression-string>bytBuf[:n]</expression-string>
+        <language-id>go</language-id>
+        <evaluation-mode>EXPRESSION</evaluation-mode>
+      </expression>
       <expression>
         <expression-string>p[:19]</expression-string>
         <language-id>go</language-id>
@@ -583,13 +599,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://C:/Go/src/builtin/builtin.go">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="4785">
-          <caret line="145" column="5" selection-start-line="145" selection-start-column="5" selection-end-line="145" selection-end-column="5" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://C:/Go/src/runtime/map_faststr.go">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="9438">
@@ -646,10 +655,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://C:/Go/src/bytes/buffer.go">
+    <entry file="file://C:/Go/src/runtime/panic.go">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="5445">
-          <caret line="169" column="53" selection-start-line="169" selection-end-line="169" selection-end-column="53" />
+        <state relative-caret-position="226">
+          <caret line="675" column="78" lean-forward="true" selection-start-line="675" selection-start-column="78" selection-end-line="675" selection-end-column="78" />
         </state>
       </provider>
     </entry>
@@ -660,31 +669,52 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://C:/Go/src/runtime/panic.go">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="226">
-          <caret line="675" column="78" lean-forward="true" selection-start-line="675" selection-start-column="78" selection-end-line="675" selection-end-column="78" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://C:/Go/src/io/io.go">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="208">
-          <caret line="403" selection-start-line="403" selection-end-line="403" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/server.go">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="142">
-          <caret line="137" selection-start-line="137" selection-end-line="137" />
+        <state relative-caret-position="905">
+          <caret line="402" column="19" selection-start-line="402" selection-start-column="19" selection-end-line="402" selection-end-column="19" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/client.go">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="297">
-          <caret line="302" column="31" lean-forward="true" selection-start-line="302" selection-start-column="31" selection-end-line="302" selection-end-column="31" />
+        <state relative-caret-position="-89">
+          <caret line="308" column="9" lean-forward="true" selection-start-line="308" selection-start-column="9" selection-end-line="308" selection-end-column="9" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://C:/Go/src/io/ioutil/ioutil.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="241">
+          <caret line="35" column="23" lean-forward="true" selection-start-line="35" selection-start-column="23" selection-end-line="35" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://C:/Go/src/bytes/buffer.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-881">
+          <caret line="202" column="9" selection-start-line="202" selection-start-column="8" selection-end-line="202" selection-end-column="9" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://C:/Go/src/builtin/builtin.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="292">
+          <caret line="140" column="5" selection-start-line="140" selection-start-column="5" selection-end-line="140" selection-end-column="5" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://C:/Go/src/io/multi.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="152">
+          <caret line="47" column="5" selection-start-line="47" selection-start-column="5" selection-end-line="47" selection-end-column="5" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/server.go">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="172">
+          <caret line="241" column="28" selection-start-line="241" selection-start-column="28" selection-end-line="241" selection-end-column="28" />
         </state>
       </provider>
     </entry>
