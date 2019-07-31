@@ -12,7 +12,7 @@ import (
 
 func main() {
 	listen, err := net.Listen("tcp", "0.0.0.0:8092")
-	if err != nil{
+	if err != nil {
 		fmt.Printf("err %v: \r\n", err)
 		return
 	}
@@ -27,8 +27,8 @@ func main() {
 		client := &data.ConnWrapper{
 			Conn:     conn,
 			Listener: make(map[string]*data.ListenerWrapper),
-			ReadCh:  make(chan data.Message,10),
-			SendCh:  make(chan data.Message,10),
+			ReadCh:   make(chan data.Message, 100),
+			SendCh:   make(chan data.Message, 100),
 		}
 		rawMessage, err := data.ReadMessageWait(client.Conn)
 		if err != nil || int8(rawMessage.Type) != 1 {
@@ -61,10 +61,10 @@ func WriteMessage(connWrapper *data.ConnWrapper) {
 		if !ok {
 			return
 		} else {
-			fmt.Printf("write message: %+v \r\n",m)
+			fmt.Printf("write message: %+v \r\n", m)
 			messageType := data.ParseMessageType(m)
-			err := data.WriteMessageByType(connWrapper.Conn,int8(messageType),m)
-			if  err != nil {
+			err := data.WriteMessageByType(connWrapper.Conn, int8(messageType), m)
+			if err != nil {
 				return
 			}
 		}
@@ -85,7 +85,7 @@ func ReadMessage(connWrapper *data.ConnWrapper) {
 			fmt.Printf("message err %v: \r\n", err)
 			return
 		}
-		if  err != nil {
+		if err != nil {
 			if err == io.EOF {
 				return
 			} else {
@@ -93,7 +93,7 @@ func ReadMessage(connWrapper *data.ConnWrapper) {
 				return
 			}
 		} else {
-			fmt.Printf("read message: %+v \r\n",m)
+			fmt.Printf("read message: %+v \r\n", m)
 			connWrapper.ReadCh <- message
 		}
 	}
@@ -104,50 +104,50 @@ func OpenSvr(client *data.ConnWrapper) {
 		client.Close()
 	}()
 	for {
-		message, ok := <- client.ReadCh
+		message, ok := <-client.ReadCh
 		if !ok {
-			fmt.Printf("client id = %s \r\n",client.Id)
+			fmt.Printf("client id = %s \r\n", client.Id)
 			return
 		}
 		switch v := message.(type) {
-			case *data.ConnectResponse:
-				go ReadClientMessage(client, v)
-			case *data.CloseRequest:
-				clientConns, okConn:= client.Listener[v.Name]
-				if okConn {
-					workConn,ok := clientConns.ClientMap[v.Id]
-					if ok {
-						client.Mutex.Lock()
-						delete(clientConns.ClientMap,v.Id)
-						client.Mutex.Unlock()
-						workConn.Conn.Close()
-					}
-				}
-
-			case *data.BinDataRequestWrapper:
-				clientConns := client.Listener[v.Name].ClientMap
-				workConn,ok := clientConns[v.Id]
-				if !ok {
-					dtReq := &data.CloseRequest{
-						Id: v.Id,
-						Name: v.Name,
-					}
-					client.SendCh <- dtReq
-					continue
-				}
-				_, err := workConn.Conn.Write(v.Content)
-				if nil != err {
-					fmt.Printf("err %v: \r\n", err)
+		case *data.ConnectResponse:
+			go ReadClientMessage(client, v)
+		case *data.CloseRequest:
+			clientConns, okConn := client.Listener[v.Name]
+			if okConn {
+				workConn, ok := clientConns.ClientMap[v.Id]
+				if ok {
+					client.Mutex.Lock()
+					delete(clientConns.ClientMap, v.Id)
+					client.Mutex.Unlock()
 					workConn.Conn.Close()
 				}
-			case *data.HearBeatRequest:
-				fmt.Printf("hear beat {%s} \r\n", client.Id)
-				hrResp := &data.HearBeatResponse{
-					Cid: client.Id,
+			}
+
+		case *data.BinDataRequestWrapper:
+			clientConns := client.Listener[v.Name].ClientMap
+			workConn, ok := clientConns[v.Id]
+			if !ok {
+				dtReq := &data.CloseRequest{
+					Id:   v.Id,
+					Name: v.Name,
 				}
-				client.SendCh <- hrResp
-			default:
-				fmt.Println(v)
+				client.SendCh <- dtReq
+				continue
+			}
+			_, err := workConn.Conn.Write(v.Content)
+			if nil != err {
+				fmt.Printf("err %v: \r\n", err)
+				workConn.Conn.Close()
+			}
+		case *data.HearBeatRequest:
+			fmt.Printf("hear beat {%s} \r\n", client.Id)
+			hrResp := &data.HearBeatResponse{
+				Cid: client.Id,
+			}
+			client.SendCh <- hrResp
+		default:
+			fmt.Println(v)
 		}
 	}
 
@@ -157,10 +157,10 @@ func ProcessSvrRequest(client *data.ConnWrapper) {
 	serviceRequest := client.ServiceReq
 	resp := &data.ServiceResponse{
 		Success: true,
-		Id:    serviceRequest.Id,
+		Id:      serviceRequest.Id,
 		Message: "服务启动成功.",
 	}
-	for _,item := range serviceRequest.ServiceList {
+	for _, item := range serviceRequest.ServiceList {
 		listen, err := net.Listen("tcp", "0.0.0.0:"+strconv.Itoa(item.RemotePort))
 		if nil != err {
 			fmt.Printf("err %v: \r\n", err)
@@ -169,15 +169,15 @@ func ProcessSvrRequest(client *data.ConnWrapper) {
 			break
 		}
 		client.Listener[item.Name] = &data.ListenerWrapper{
-			Listener: listen,
+			Listener:  listen,
 			ClientMap: make(map[string]*data.ClientConn),
 		}
 		fmt.Println("server start, listen to port " + strconv.Itoa(item.RemotePort) + " wait connect..")
 	}
 	client.SendCh <- resp
-	for n,l := range client.Listener{
+	for n, l := range client.Listener {
 		go func(n string, l net.Listener) {
-			for{
+			for {
 				conn, err := l.Accept()
 				if nil != err {
 					fmt.Printf("l.Listener.Accept err %v: \r\n", err)
@@ -185,18 +185,18 @@ func ProcessSvrRequest(client *data.ConnWrapper) {
 				}
 				id := handler.RandStringRunes(12)
 				client.Listener[n].ClientMap[id] = &data.ClientConn{
-					Id:   id,
-					Conn: conn,
-					ReadCh: make(chan []byte,10),
+					Id:     id,
+					Conn:   conn,
+					ReadCh: make(chan []byte, 100),
 				}
 				connReq := &data.ConnectRequest{
 					Id:   id,
-					Name:  n,
+					Name: n,
 					Ip:   conn.RemoteAddr().String(),
 				}
 				client.SendCh <- connReq
 			}
-		}(n,l.Listener)
+		}(n, l.Listener)
 	}
 }
 
@@ -211,17 +211,17 @@ func ReadClientMessage(client *data.ConnWrapper, request *data.ConnectResponse) 
 		}
 	}()
 	for {
-		buf := make([]byte, 2 * 1024)
+		buf := make([]byte, 2*1024)
 		n, err := workConn.Read(buf)
 		if nil != err {
 			fmt.Printf("err %v: \r\n", err)
 			dtReq := &data.CloseRequest{
-				Id: request.Id,
+				Id:   request.Id,
 				Name: request.Name,
 			}
 			client.SendCh <- dtReq
 			client.Mutex.Lock()
-			delete(client.Listener[request.Name].ClientMap,request.Id)
+			delete(client.Listener[request.Name].ClientMap, request.Id)
 			client.Mutex.Unlock()
 			return
 		}

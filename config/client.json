@@ -1,5 +1,5 @@
 {
-  "server_addr": "qq375904043.xicp.net:8092",
+  "server_addr": "192.168.1.106:8092",
   "service_list": [{
     "name": "test",
     "remote_port": 5001,
