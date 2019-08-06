@@ -1,27 +1,18 @@
 {
-  "server_addr": "192.168.1.106:8092",
+  "server_addr": "172.30.191.141:8092",
   "service_list": [{
-    "name": "test",
-    "remote_port": 5001,
-    "local_addr": "192.168.1.106:5000"
-  },{
     "name": "mysql",
-    "remote_port": 8002,
-    "local_addr": "192.168.1.106:3306"
+    "remote_port": 3306,
+    "local_addr": "10.33.1.164:3306"
   },
     {
-      "name": "80",
-      "remote_port": 8003,
-      "local_addr": "192.168.1.106:80"
-    },
-    {
       "name": "ssh",
-      "remote_port": 8004,
-      "local_addr": "192.168.1.103:22"
+      "remote_port": 2022,
+      "local_addr": "10.33.1.164:22"
     },
     {
       "name": "3389",
-      "remote_port": 8006,
-      "local_addr": "192.168.1.108:3389"
+      "remote_port": 3388,
+      "local_addr": "qq375904043.xicp.net:3389"
     }]
 }

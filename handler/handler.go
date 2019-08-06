@@ -18,11 +18,11 @@ func RandStringRunes(n int) string {
 	return string(b)
 }
 
-func IsCaredNetError(err error,msg string) bool {
+func IsCaredNetError(err error, msg string) bool {
 	if nil == err {
 		return false
 	}
-	log.Printf("msg = %s ,IsCaredNetError  error = %+v \r\n", msg,err)
+	log.Printf("msg = %s ,IsCaredNetError  error = %+v \r\n", msg, err)
 	if err.Error() == "EOF" {
 		return true
 	}
@@ -39,29 +39,29 @@ func IsCaredNetError(err error,msg string) bool {
 		return false
 	}
 	switch t := opErr.Err.(type) {
-		case *net.DNSError:
-			log.Printf("net.DNSError:%+v", t)
-			return true
-		case *os.SyscallError:
-			log.Printf("os.SyscallError:%+v", t)
-			if errno, ok := t.Err.(syscall.Errno); ok {
-				switch errno {
-					case syscall.ECONNREFUSED:
-						log.Println("connect refused")
-						return true
-					case syscall.ETIMEDOUT:
-						log.Println("timeout")
-						return true
-					case syscall.WSAECONNRESET:
-						log.Println("wsaeconn reset")
-						return true
-					case 10048:
-						log.Println("bind port already in use")
-						return true
-					}
+	case *net.DNSError:
+		log.Printf("net.DNSError:%+v", t)
+		return true
+	case *os.SyscallError:
+		log.Printf("os.SyscallError:%+v", t)
+		if errno, ok := t.Err.(syscall.Errno); ok {
+			switch errno {
+			case syscall.ECONNREFUSED:
+				log.Println("connect refused")
+				return true
+			case syscall.ETIMEDOUT:
+				log.Println("timeout")
+				return true
+			//case syscall.WSAECONNRESET:
+			//	log.Println("wsaeconn reset")
+			//	return true
+			case 10048:
+				log.Println("bind port already in use")
+				return true
 			}
-		default:
-			return true
+		}
+	default:
+		return true
 	}
 	return false
 }

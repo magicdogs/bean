@@ -1,4 +1,4 @@
-package data
+package common
 
 import (
 	"bufio"
@@ -10,63 +10,67 @@ import (
 	"io"
 	"log"
 	"net"
-	"sync"
 	"time"
 )
 
+type BeanReaderWriter interface {
+	Close()
+	WorkConn() net.Conn
+	ReaderCh() chan Message
+	SenderCh() chan Message
+}
+
+func MessageWriter(rwx BeanReaderWriter) {
+	defer func() {
+		rwx.Close()
+	}()
+	for {
+		m, ok := <-rwx.SenderCh()
+		if !ok {
+			return
+		} else {
+			fmt.Printf("write message: %+v \r\n", m)
+			messageType := ParseMessageType(m)
+			err := WriteMessageByType(rwx.WorkConn(), int8(messageType), m)
+			if err != nil {
+				return
+			}
+		}
+	}
+}
+
+func MessageReader(rwx BeanReaderWriter) {
+	defer func() {
+		rwx.Close()
+	}()
+	for {
+		m, err := ReadMessageWait(rwx.WorkConn())
+		if nil != err {
+			rwx.Close()
+			if err == io.EOF {
+				fmt.Printf("read chan eof  %v: \r\n", err)
+				return
+			}
+			fmt.Printf("read chan err %v: \r\n", err)
+			return
+		}
+		message, err := ParseMessage(m)
+		if err != nil {
+			fmt.Printf("message err %v: \r\n", err)
+			continue
+		} else {
+			rwx.ReaderCh() <- message
+		}
+	}
+}
 
 type Message interface {
 }
 
-type ConnWrapper struct {
-	Id      string
-	Conn     net.Conn
-	Listener map[string]*ListenerWrapper
-	ReadCh   chan Message
-	SendCh   chan Message
-	ServiceReq *ServiceRequest
-	Closed bool
-	Mutex  sync.Mutex
-}
-
-type ListenerWrapper struct {
-	ClientMap map[string]*ClientConn
-	Listener  net.Listener
-}
-
-type ClientConn struct {
-	Id   string
-	Conn net.Conn
-	ReadCh chan []byte
-}
-
-func (c *ConnWrapper) Close() {
-	c.Mutex.Lock()
-	if !c.Closed {
-		close(c.ReadCh)
-		close(c.SendCh)
-		c.Closed = true
-	}
-	c.Mutex.Unlock()
-	for _, v := range c.Listener {
-		for _, m := range v.ClientMap {
-			if m.Conn != nil {
-				m.Conn.Close()
-			}
-		}
-		if v.Listener != nil {
-			v.Listener.Close()
-		}
-	}
-	if c.Conn != nil {
-		c.Conn.Close()
-	}
-}
-
 type ServiceRequest struct {
-	Id string `json:"id"`
+	Id          string        `json:"id"`
 	ServiceList []ServiceBody `json:"service_list"`
-	ReqTime    time.Time `json:"req_time"`
+	ReqTime     time.Time     `json:"req_time"`
 }
 
 type ServiceBody struct {
@@ -75,7 +79,7 @@ type ServiceBody struct {
 }
 
 type ServiceResponse struct {
-	Id   	string `json:"id"`
+	Id      string `json:"id"`
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 }
@@ -88,7 +92,7 @@ type ConnectRequest struct {
 
 type ConnectResponse struct {
 	Id      string `json:"id"`
-	Name string `json:"name"`
+	Name    string `json:"name"`
 	Success bool   `json:"success"`
 }
 
@@ -126,7 +130,7 @@ func ReadMessageWait(conn net.Conn) (*RawMessage, error) {
 	_, err := conn.Read(buffer)
 	if err != nil {
 		fmt.Println("rr1 io.eof")
-		return nil,err
+		return nil, err
 	}
 	typ := uint8(buffer[0])
 	var length int32
@@ -141,8 +145,8 @@ func ReadMessageWait(conn net.Conn) (*RawMessage, error) {
 	}
 	fmt.Printf("read message type = %d, message length = %d \r\n", typ, length)
 	bufBody := make([]byte, length)
-	_, err = io.ReadFull(conn,bufBody)
-	if nil != err{
+	_, err = io.ReadFull(conn, bufBody)
+	if nil != err {
 		fmt.Println("ffxxxxxxxxx error" + err.Error())
 		return nil, err
 	}
@@ -157,9 +161,9 @@ func ReadMessageWait(conn net.Conn) (*RawMessage, error) {
 func WriteMessageByType(conn net.Conn, typ int8, msg Message) (err error) {
 	if typ == 5 {
 		v := msg.(*BinDataRequestWrapper)
-		return WriteDataMessage(conn,typ,v.BinDataRequest,v.Content)
-	}else {
-		return WriteMessage(conn,typ,msg)
+		return WriteDataMessage(conn, typ, v.BinDataRequest, v.Content)
+	} else {
+		return WriteMessage(conn, typ, msg)
 	}
 }
 func WriteDataMessage(conn net.Conn, typ int8, data Message, buf []byte) (err error) {
@@ -219,7 +223,7 @@ func WriteMessage(conn net.Conn, typ int8, data Message) (err error) {
 	return err
 }
 
-func ParseMessage(rawMessage *RawMessage) (Message,error) {
+func ParseMessage(rawMessage *RawMessage) (Message, error) {
 	v := int(rawMessage.Type)
 	switch v {
 	case 1:
@@ -296,28 +300,28 @@ func ParseMessage(rawMessage *RawMessage) (Message,error) {
 	}
 }
 
-func ParseMessageType(message interface{}) (int) {
+func ParseMessageType(message interface{}) int {
 	switch v := message.(type) {
-		case *ServiceRequest:
-			return 1
-		case *ServiceResponse:
-			return 2
-		case *ConnectRequest:
-			return 3
-		case *ConnectResponse:
-			return 4
-		case *BinDataRequest:
-			return 5
-		case *BinDataRequestWrapper:
-			return 5
-		case *CloseRequest:
-			return 6
-		case *HearBeatRequest:
-			return 7
-		case *HearBeatResponse:
-			return 8
-		default:
-			fmt.Println(v)
-			return -1
+	case *ServiceRequest:
+		return 1
+	case *ServiceResponse:
+		return 2
+	case *ConnectRequest:
+		return 3
+	case *ConnectResponse:
+		return 4
+	case *BinDataRequest:
+		return 5
+	case *BinDataRequestWrapper:
+		return 5
+	case *CloseRequest:
+		return 6
+	case *HearBeatRequest:
+		return 7
+	case *HearBeatResponse:
+		return 8
+	default:
+		fmt.Println(v)
+		return -1
 	}
 }
