@@ -13,6 +13,24 @@ import (
 	"time"
 )
 
+type JoinWriter struct {
+	Id     string
+	Name   string
+	Sender chan Message
+}
+
+func (b *JoinWriter) Write(p []byte) (n int, err error) {
+	dtReq := &BinDataRequestWrapper{
+		BinDataRequest: BinDataRequest{
+			Id:   b.Id,
+			Name: b.Name,
+		},
+		Content: p,
+	}
+	b.Sender <- dtReq
+	return len(p), nil
+}
+
 type BeanReaderWriter interface {
 	Close()
 	WorkConn() net.Conn

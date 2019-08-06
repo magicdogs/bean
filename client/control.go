@@ -220,14 +220,17 @@ func ReadLocalSvrMessage(clientApplication *BeanClient, connLocal net.Conn, requ
 			Name: request.Name,
 		}
 		clientApplication.SendCh <- dtReq
-		connLocal.Close()
+		clientApplication.Mutex.Lock()
 		delete(clientApplication.ProxyMap, request.Id)
+		clientApplication.Mutex.Unlock()
+		connLocal.Close()
 	}()
-	//cwr := &ClientWriter{
-	//	C:clientApplication,
-	//	R:request,
+	//cwr := &common.JoinWriter{
+	//	Sender: clientApplication.SendCh,
+	//	Id: request.Id,
+	//	Name: request.Name,
 	//}
-	//buf := make([]byte,1024)
+	//buf := make([]byte,512)
 	//written, err := io.CopyBuffer(cwr,connLocal,buf)
 	//fmt.Println("cwr = " + strconv.Itoa(int(written)))
 	//if err != nil {
@@ -246,16 +249,6 @@ func ReadLocalSvrMessage(clientApplication *BeanClient, connLocal net.Conn, requ
 		}
 		if err != nil {
 			fmt.Printf("err %v: \r\n", err)
-			dtReq := &common.CloseRequest{
-				Id:   request.Id,
-				Name: request.Name,
-			}
-			clientApplication.SendCh <- dtReq
-			clientApplication.Mutex.Lock()
-			delete(clientApplication.ProxyMap, request.Id)
-			clientApplication.Mutex.Unlock()
-			connLocal.Close()
-			clientApplication.SendCh <- dtReq
 			return
 		}
 		clientApplication.SendCh <- dtReq
@@ -264,6 +257,18 @@ func ReadLocalSvrMessage(clientApplication *BeanClient, connLocal net.Conn, requ
 
 func ReadSvrMessage(dtReq *common.BinDataRequestWrapper, clientApplication *BeanClient) {
 	connLocal, ok := clientApplication.ProxyMap[dtReq.Id]
+	defer func() {
+		closeReq := &common.CloseRequest{
+			Id:   dtReq.Id,
+			Name: dtReq.Name,
+		}
+		clientApplication.SendCh <- closeReq
+		connLocal.Close()
+		clientApplication.Mutex.Lock()
+		delete(clientApplication.ProxyMap, dtReq.Id)
+		clientApplication.Mutex.Unlock()
+
+	}()
 	if !ok {
 		fmt.Printf("connLocal == nil err \r\n")
 		closeReq := &common.CloseRequest{
@@ -275,15 +280,7 @@ func ReadSvrMessage(dtReq *common.BinDataRequestWrapper, clientApplication *Bean
 	}
 	_, err := connLocal.Write(dtReq.Content)
 	if err != nil {
-		fmt.Printf("connLocal == nil err \r\n")
-		closeReq := &common.CloseRequest{
-			Id:   dtReq.Id,
-			Name: dtReq.Name,
-		}
-		clientApplication.SendCh <- closeReq
-		connLocal.Close()
-		delete(clientApplication.ProxyMap, dtReq.Id)
-		fmt.Printf("err %v: \r\n", err)
+		fmt.Printf("connLocal == nil, err %v: \r\n", err)
 		return
 	}
 }

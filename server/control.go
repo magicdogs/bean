@@ -168,7 +168,6 @@ func (s *BeanServer) OpenSvr() {
 }
 
 func ReadClientMessage(client *BeanServer, request *common.ConnectResponse) {
-	workConn := client.Listener[request.Name].ClientMap[request.Id].Conn
 	defer func() {
 		dtReq := &common.CloseRequest{
 			Id:   request.Id,
@@ -178,18 +177,25 @@ func ReadClientMessage(client *BeanServer, request *common.ConnectResponse) {
 		client.Mutex.Lock()
 		delete(client.Listener[request.Name].ClientMap, request.Id)
 		client.Mutex.Unlock()
-		workConn.Close()
 		if err := recover(); err != nil {
 			fmt.Println("panic error server ReadClientMessage")
 			client.Close()
 			return
 		}
 	}()
-	//swr := &ServerWriter{
-	//	C: client,
-	//	R: request,
+	channel, ok := client.Listener[request.Name].ClientMap[request.Id]
+	if !ok {
+		fmt.Println("ReadClientMessage error , workConn not exists in map.")
+		return
+	}
+	workConn := channel.Conn
+	defer workConn.Close()
+	//swr := &common.JoinWriter{
+	//	Sender: client.SendCh,
+	//	Id: request.Id,
+	//	Name: request.Name,
 	//}
-	//buf := make([]byte, 1024)
+	//buf := make([]byte, 512)
 	//n, err := io.CopyBuffer(swr, workConn, buf)
 	//fmt.Println("swr n = " + strconv.Itoa(int(n)))
 	//if nil != err {
@@ -197,7 +203,7 @@ func ReadClientMessage(client *BeanServer, request *common.ConnectResponse) {
 	//	return
 	//}
 	for {
-		buf := make([]byte, 1024)
+		buf := make([]byte, 512)
 		n, err := workConn.Read(buf)
 		dtReq := &common.BinDataRequestWrapper{
 			BinDataRequest: common.BinDataRequest{
