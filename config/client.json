@@ -14,5 +14,10 @@
       "name": "3389",
       "remote_port": 3388,
       "local_addr": "qq375904043.xicp.net:3389"
+    },
+    {
+      "name": "6201",
+      "remote_port": 6201,
+      "local_addr": "172.30.191.45:6201"
     }]
 }

@@ -115,12 +115,12 @@ func (c *BeanClient) RunClient(restartFlag bool) {
 func (c *BeanClient) TransportMessage() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer func() {
-		if err := recover(); err != nil {
-			fmt.Println("panic error TransportMessage")
-			ticker.Stop()
-			c.RestartSign <- true
-			return
-		}
+		//if err := recover(); err != nil {
+		//	fmt.Printf("panic error TransportMessage err %v: \r\n", err)
+		//	ticker.Stop()
+		//	c.RestartSign <- true
+		//	return
+		//}
 	}()
 	for {
 		select {
@@ -248,7 +248,7 @@ func ReadLocalSvrMessage(clientApplication *BeanClient, connLocal net.Conn, requ
 			Content: bytBuf[:n],
 		}
 		if err != nil {
-			fmt.Printf("err %v: \r\n", err)
+			fmt.Printf("ReadLocalSvrMessage err %v: \r\n", err)
 			return
 		}
 		clientApplication.SendCh <- dtReq
@@ -257,30 +257,27 @@ func ReadLocalSvrMessage(clientApplication *BeanClient, connLocal net.Conn, requ
 
 func ReadSvrMessage(dtReq *common.BinDataRequestWrapper, clientApplication *BeanClient) {
 	connLocal, ok := clientApplication.ProxyMap[dtReq.Id]
+	var err error
 	defer func() {
-		closeReq := &common.CloseRequest{
-			Id:   dtReq.Id,
-			Name: dtReq.Name,
+		if nil != err {
+			connLocal.Close()
+			closeReq := &common.CloseRequest{
+				Id:   dtReq.Id,
+				Name: dtReq.Name,
+			}
+			clientApplication.SendCh <- closeReq
+			clientApplication.Mutex.Lock()
+			delete(clientApplication.ProxyMap, dtReq.Id)
+			clientApplication.Mutex.Unlock()
 		}
-		clientApplication.SendCh <- closeReq
-		connLocal.Close()
-		clientApplication.Mutex.Lock()
-		delete(clientApplication.ProxyMap, dtReq.Id)
-		clientApplication.Mutex.Unlock()
-
 	}()
 	if !ok {
 		fmt.Printf("connLocal == nil err \r\n")
-		closeReq := &common.CloseRequest{
-			Id:   dtReq.Id,
-			Name: dtReq.Name,
-		}
-		clientApplication.SendCh <- closeReq
 		return
 	}
-	_, err := connLocal.Write(dtReq.Content)
+	_, err = connLocal.Write(dtReq.Content)
 	if err != nil {
-		fmt.Printf("connLocal == nil, err %v: \r\n", err)
+		fmt.Printf("connLocal Write  err %v: \r\n", err)
 		return
 	}
 }
