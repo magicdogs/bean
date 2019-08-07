@@ -5,8 +5,10 @@ import (
 	"bean/handler"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -225,34 +227,39 @@ func ReadLocalSvrMessage(clientApplication *BeanClient, connLocal net.Conn, requ
 		clientApplication.Mutex.Unlock()
 		connLocal.Close()
 	}()
-	//cwr := &common.JoinWriter{
-	//	Sender: clientApplication.SendCh,
-	//	Id: request.Id,
-	//	Name: request.Name,
-	//}
-	//buf := make([]byte,512)
-	//written, err := io.CopyBuffer(cwr,connLocal,buf)
-	//fmt.Println("cwr = " + strconv.Itoa(int(written)))
-	//if err != nil {
-	//	fmt.Printf("err %v: \r\n", err)
-	//	return
-	//}
-	for {
-		bytBuf := make([]byte, 512)
-		n, err := connLocal.Read(bytBuf)
-		dtReq := &common.BinDataRequestWrapper{
-			BinDataRequest: common.BinDataRequest{
-				Id:   request.Id,
-				Name: request.Name,
-			},
-			Content: bytBuf[:n],
-		}
-		if err != nil {
-			fmt.Printf("ReadLocalSvrMessage err %v: \r\n", err)
-			return
-		}
-		clientApplication.SendCh <- dtReq
+	cwr := &common.JoinWriter{
+		Sender: clientApplication.Conn,
+		Id:     request.Id,
+		Name:   request.Name,
 	}
+	buf := make([]byte, 4096)
+	written, err := io.CopyBuffer(cwr, connLocal, buf)
+	fmt.Println("cwr = " + strconv.Itoa(int(written)))
+	if err != nil {
+		fmt.Printf("err %v: \r\n", err)
+		return
+	}
+	//bytBuf := bytes.NewBuffer(make([]byte, 0, 1024))
+	//bytBuf := make([]byte, 4096)
+	//for {
+	//	n, err := connLocal.Read(bytBuf)
+	//	if err != nil {
+	//		fmt.Printf("ReadLocalSvrMessage err %v: \r\n", err)
+	//		return
+	//	}
+	//	if n > 0 {
+	//		dumpData := make([]byte, n)
+	//		copy(dumpData, bytBuf)
+	//		dtReq := &common.BinDataRequestWrapper{
+	//			BinDataRequest: common.BinDataRequest{
+	//				Id:   request.Id,
+	//				Name: request.Name,
+	//			},
+	//			Content: dumpData,
+	//		}
+	//		clientApplication.SendCh <- dtReq
+	//	}
+	//}
 }
 
 func ReadSvrMessage(dtReq *common.BinDataRequestWrapper, clientApplication *BeanClient) {

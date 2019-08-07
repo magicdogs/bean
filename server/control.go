@@ -203,7 +203,7 @@ func ReadClientMessage(client *BeanServer, request *common.ConnectResponse) {
 	//	return
 	//}
 	for {
-		buf := make([]byte, 512)
+		buf := make([]byte, 4096)
 		n, err := workConn.Read(buf)
 		dtReq := &common.BinDataRequestWrapper{
 			BinDataRequest: common.BinDataRequest{

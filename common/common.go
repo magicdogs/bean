@@ -16,7 +16,7 @@ import (
 type JoinWriter struct {
 	Id     string
 	Name   string
-	Sender chan Message
+	Sender net.Conn
 }
 
 func (b *JoinWriter) Write(p []byte) (n int, err error) {
@@ -27,8 +27,9 @@ func (b *JoinWriter) Write(p []byte) (n int, err error) {
 		},
 		Content: p,
 	}
-	b.Sender <- dtReq
-	return len(p), nil
+	messageType := ParseMessageType(dtReq)
+	err = WriteMessageByType(b.Sender, int8(messageType), dtReq)
+	return len(p), err
 }
 
 type BeanReaderWriter interface {
