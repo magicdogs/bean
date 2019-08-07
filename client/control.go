@@ -117,12 +117,12 @@ func (c *BeanClient) RunClient(restartFlag bool) {
 func (c *BeanClient) TransportMessage() {
 	ticker := time.NewTicker(10 * time.Second)
 	defer func() {
-		//if err := recover(); err != nil {
-		//	fmt.Printf("panic error TransportMessage err %v: \r\n", err)
-		//	ticker.Stop()
-		//	c.RestartSign <- true
-		//	return
-		//}
+		if err := recover(); err != nil {
+			fmt.Printf("panic error TransportMessage err %v: \r\n", err)
+			ticker.Stop()
+			c.RestartSign <- true
+			return
+		}
 	}()
 	for {
 		select {
