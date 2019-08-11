@@ -4,6 +4,7 @@ import (
 	"bean/common"
 	"bean/handler"
 	"fmt"
+	"io"
 	"net"
 	"strconv"
 	"sync"
@@ -173,11 +174,11 @@ func ReadClientMessage(client *BeanServer, request *common.ConnectResponse) {
 			Id:   request.Id,
 			Name: request.Name,
 		}
-		client.SendCh <- dtReq
 		client.Mutex.Lock()
 		delete(client.Listener[request.Name].ClientMap, request.Id)
 		client.Mutex.Unlock()
-		if err := recover(); err != nil {
+		messageType := common.ParseMessageType(dtReq)
+		if err := common.WriteMessageByType(client.Conn, int8(messageType), dtReq); err != nil {
 			fmt.Println("panic error server ReadClientMessage")
 			client.Close()
 			return
@@ -190,34 +191,17 @@ func ReadClientMessage(client *BeanServer, request *common.ConnectResponse) {
 	}
 	workConn := channel.Conn
 	defer workConn.Close()
-	//swr := &common.JoinWriter{
-	//	Sender: client.SendCh,
-	//	Id: request.Id,
-	//	Name: request.Name,
-	//}
-	//buf := make([]byte, 512)
-	//n, err := io.CopyBuffer(swr, workConn, buf)
-	//fmt.Println("swr n = " + strconv.Itoa(int(n)))
-	//if nil != err {
-	//	fmt.Printf("err %v: \r\n", err)
-	//	return
-	//}
-	for {
-		buf := make([]byte, 4096)
-		n, err := workConn.Read(buf)
-		dtReq := &common.BinDataRequestWrapper{
-			BinDataRequest: common.BinDataRequest{
-				Id:   request.Id,
-				Name: request.Name,
-			},
-			Content: buf[0:n],
-		}
-		client.SendCh <- dtReq
-		fmt.Println("swr n = " + strconv.Itoa(int(n)))
-		if nil != err {
-			fmt.Printf("err %v: \r\n", err)
-			return
-		}
+	swr := &common.JoinWriter{
+		Sender: client.Conn,
+		Id:     request.Id,
+		Name:   request.Name,
+	}
+	buf := make([]byte, 16*1024)
+	n, err := io.CopyBuffer(swr, workConn, buf)
+	fmt.Println("swr n = " + strconv.Itoa(int(n)))
+	if nil != err {
+		fmt.Printf("err %v: \r\n", err)
+		return
 	}
 
 }

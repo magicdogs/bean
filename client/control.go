@@ -216,50 +216,31 @@ func createPortSvr(request *common.ConnectRequest, clientApplication *BeanClient
 }
 
 func ReadLocalSvrMessage(clientApplication *BeanClient, connLocal net.Conn, request *common.ConnectRequest) {
-	defer func() {
-		dtReq := &common.CloseRequest{
-			Id:   request.Id,
-			Name: request.Name,
-		}
-		clientApplication.SendCh <- dtReq
-		clientApplication.Mutex.Lock()
-		delete(clientApplication.ProxyMap, request.Id)
-		clientApplication.Mutex.Unlock()
-		connLocal.Close()
-	}()
 	cwr := &common.JoinWriter{
 		Sender: clientApplication.Conn,
 		Id:     request.Id,
 		Name:   request.Name,
 	}
-	buf := make([]byte, 4096)
+	buf := make([]byte, 16*1024)
 	written, err := io.CopyBuffer(cwr, connLocal, buf)
 	fmt.Println("cwr = " + strconv.Itoa(int(written)))
 	if err != nil {
 		fmt.Printf("err %v: \r\n", err)
-		return
+		connLocal.Close()
+		dtReq := &common.CloseRequest{
+			Id:   request.Id,
+			Name: request.Name,
+		}
+		clientApplication.Mutex.Lock()
+		delete(clientApplication.ProxyMap, request.Id)
+		clientApplication.Mutex.Unlock()
+		messageType := common.ParseMessageType(dtReq)
+		if err = common.WriteMessageByType(clientApplication.Conn, int8(messageType), dtReq); err != nil {
+			fmt.Printf("panic error ReadLocalSvrMessage err %v: \r\n", err)
+			clientApplication.Close()
+			clientApplication.RestartSign <- true
+		}
 	}
-	//bytBuf := bytes.NewBuffer(make([]byte, 0, 1024))
-	//bytBuf := make([]byte, 4096)
-	//for {
-	//	n, err := connLocal.Read(bytBuf)
-	//	if err != nil {
-	//		fmt.Printf("ReadLocalSvrMessage err %v: \r\n", err)
-	//		return
-	//	}
-	//	if n > 0 {
-	//		dumpData := make([]byte, n)
-	//		copy(dumpData, bytBuf)
-	//		dtReq := &common.BinDataRequestWrapper{
-	//			BinDataRequest: common.BinDataRequest{
-	//				Id:   request.Id,
-	//				Name: request.Name,
-	//			},
-	//			Content: dumpData,
-	//		}
-	//		clientApplication.SendCh <- dtReq
-	//	}
-	//}
 }
 
 func ReadSvrMessage(dtReq *common.BinDataRequestWrapper, clientApplication *BeanClient) {

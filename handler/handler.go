@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"math/rand"
 	"net"
@@ -16,6 +17,17 @@ func RandStringRunes(n int) string {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
 	return string(b)
+}
+
+func CatchExceptionRun(fn func(), exp func()) {
+	defer func() {
+		if err := recover(); err != nil {
+			fmt.Printf("panic error CatchExceptionRun err %v: \r\n", err)
+			exp()
+			return
+		}
+	}()
+	fn()
 }
 
 func IsCaredNetError(err error, msg string) bool {
